@@ -37,11 +37,11 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       title: info.basic_info.title || "Unknown",
-      thumbnail: info.basic_info.thumbnail?.[0]?.url || null,
+      thumbnail: info.basic_info.thumbnail?.[0]?.url || (videoId ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg` : null),
       duration: info.basic_info.duration
         ? formatDuration(info.basic_info.duration)
         : "N/A",
-      author: info.basic_info.channel?.name || "Unknown",
+      author: info.basic_info.author || info.basic_info.channel?.name || "Unknown",
     });
   } catch (error) {
     console.error("Error fetching video info:", error);
