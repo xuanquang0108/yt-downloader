@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "app/api/download/**": {
+      "maxDuration": 30
+    },
+    "app/api/info/**": {
+      "maxDuration": 10
+    }
+  }
+}
