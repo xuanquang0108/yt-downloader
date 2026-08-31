@@ -117,7 +117,7 @@ export default function DownloadForm({
             : "bg-orange-500 text-white hover:bg-orange-600"
         }`}
       >
-        Tải nhạc về máy (MP3)
+        Tải nhạc về máy
       </button>
     </div>
   );

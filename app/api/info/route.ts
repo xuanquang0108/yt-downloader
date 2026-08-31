@@ -1,8 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { execFile } from "child_process";
-import { promisify } from "util";
+import { Innertube, Platform } from "youtubei.js";
 
-const execFileAsync = promisify(execFile);
+Platform.shim.eval = async (data) => {
+  return new Function(data.output)();
+};
+
+let yt: Innertube | null = null;
+
+async function getYT() {
+  if (!yt) {
+    yt = await Innertube.create({
+      lang: "vi",
+      location: "VN",
+      retrieve_player: true,
+      generate_session_locally: true,
+    });
+  }
+  return yt;
+}
 
 export async function GET(request: NextRequest) {
   const url = request.nextUrl.searchParams.get("url");
@@ -17,21 +32,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "URL không hợp lệ" }, { status: 400 });
     }
 
-    const { stdout } = await execFileAsync("yt-dlp", [
-      "--js-runtimes", "node",
-      "--dump-json",
-      "--no-download",
-      "--no-warnings",
-      `https://www.youtube.com/watch?v=${videoId}`,
-    ], { maxBuffer: 1024 * 1024 * 10 });
-
-    const data = JSON.parse(stdout);
+    const ytInstance = await getYT();
+    const info = await ytInstance.getBasicInfo(videoId, { client: "IOS" });
 
     return NextResponse.json({
-      title: data.title || "Unknown",
-      thumbnail: data.thumbnail || null,
-      duration: data.duration ? formatDuration(data.duration) : "N/A",
-      author: data.uploader || data.channel || "Unknown",
+      title: info.basic_info.title || "Unknown",
+      thumbnail: info.basic_info.thumbnail?.[0]?.url || null,
+      duration: info.basic_info.duration
+        ? formatDuration(info.basic_info.duration)
+        : "N/A",
+      author: info.basic_info.channel?.name || "Unknown",
     });
   } catch (error) {
     console.error("Error fetching video info:", error);

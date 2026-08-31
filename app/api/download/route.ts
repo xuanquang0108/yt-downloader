@@ -1,9 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
-import { spawn } from "child_process";
+import { Innertube, Platform } from "youtubei.js";
+
+Platform.shim.eval = async (data) => {
+  return new Function(data.output)();
+};
+
+let yt: Innertube | null = null;
+
+async function getYT() {
+  if (!yt) {
+    yt = await Innertube.create({
+      lang: "vi",
+      location: "VN",
+      retrieve_player: true,
+      generate_session_locally: true,
+    });
+  }
+  return yt;
+}
 
 export async function GET(request: NextRequest) {
   const url = request.nextUrl.searchParams.get("url");
-  const quality = request.nextUrl.searchParams.get("quality") || "192";
 
   if (!url) {
     return NextResponse.json({ error: "URL is required" }, { status: 400 });
@@ -15,43 +32,45 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "URL không hợp lệ" }, { status: 400 });
     }
 
-    const child = spawn("yt-dlp", [
-      "--js-runtimes", "node",
-      "-x",
-      "--audio-format", "mp3",
-      "--audio-quality", `${quality}K`,
-      "--no-playlist",
-      "--no-warnings",
-      "-o", "-",
-      "--", `https://www.youtube.com/watch?v=${videoId}`,
-    ]);
+    const ytInstance = await getYT();
+    const info = await ytInstance.getBasicInfo(videoId, { client: "IOS" });
+    const title =
+      (info.basic_info.title || "audio")
+        .replace(/[^\w\s-]/g, "")
+        .trim() || "audio";
 
-    let title = "audio";
-    try {
-      const { execFile } = await import("child_process");
-      const { promisify } = await import("util");
-      const execFileAsync = promisify(execFile);
-      const { stdout } = await execFileAsync("yt-dlp", [
-        "--js-runtimes", "node",
-        "--print", "title",
-        "--no-download",
-        "--no-warnings",
-        "--no-playlist",
-        `https://www.youtube.com/watch?v=${videoId}`,
-      ]);
-      title = stdout.trim().replace(/[^\w\s-]/g, "").trim() || "audio";
-    } catch {
-      title = "audio";
+    const audioFormats =
+      info.streaming_data?.adaptive_formats?.filter((f) =>
+        f.mime_type?.includes("audio")
+      ) || [];
+
+    if (audioFormats.length === 0) {
+      throw new Error("Không tìm thấy format audio");
     }
 
-    child.stderr.on("data", (data: Buffer) => {
-      console.error("yt-dlp stderr:", data.toString());
+    const bestFormat = audioFormats.sort(
+      (a, b) => (b.bitrate || 0) - (a.bitrate || 0)
+    )[0];
+
+    if (!bestFormat.url) {
+      throw new Error("Không tìm thấy URL download");
+    }
+
+    const response = await fetch(bestFormat.url, {
+      headers: {
+        "Origin": "https://www.youtube.com",
+        "Referer": "https://www.youtube.com/",
+      },
     });
 
-    return new NextResponse(child.stdout as unknown as ReadableStream, {
+    if (!response.ok || !response.body) {
+      throw new Error("Download failed: " + response.status);
+    }
+
+    return new NextResponse(response.body, {
       headers: {
-        "Content-Type": "audio/mpeg",
-        "Content-Disposition": `attachment; filename="${title}.mp3"`,
+        "Content-Type": "audio/mp4",
+        "Content-Disposition": `attachment; filename="${title}.m4a"`,
       },
     });
   } catch (error) {

@@ -23,7 +23,7 @@ export default function Home() {
   const handleDownload = (url: string, quality: string) => {
     const link = document.createElement("a");
     link.href = `/api/download?url=${encodeURIComponent(url)}&quality=${quality}`;
-    link.download = "nhac.mp3";
+    link.download = "nhac.m4a";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
