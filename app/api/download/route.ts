@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { Innertube, Platform } from "youtubei.js";
 
 Platform.shim.eval = async (data) => {
@@ -19,17 +19,20 @@ async function getYT() {
   return yt;
 }
 
+export const dynamic = "force-dynamic";
+export const maxDuration = 30;
+
 export async function GET(request: NextRequest) {
   const url = request.nextUrl.searchParams.get("url");
 
   if (!url) {
-    return NextResponse.json({ error: "URL is required" }, { status: 400 });
+    return Response.json({ error: "URL is required" }, { status: 400 });
   }
 
   try {
     const videoId = extractVideoId(url);
     if (!videoId) {
-      return NextResponse.json({ error: "URL không hợp lệ" }, { status: 400 });
+      return Response.json({ error: "URL không hợp lệ" }, { status: 400 });
     }
 
     const ytInstance = await getYT();
@@ -56,18 +59,18 @@ export async function GET(request: NextRequest) {
       throw new Error("Không tìm thấy URL download");
     }
 
-    const response = await fetch(bestFormat.url, {
+    const ytResponse = await fetch(bestFormat.url, {
       headers: {
         "Origin": "https://www.youtube.com",
         "Referer": "https://www.youtube.com/",
       },
     });
 
-    if (!response.ok || !response.body) {
-      throw new Error("Download failed: " + response.status);
+    if (!ytResponse.ok || !ytResponse.body) {
+      throw new Error("Download failed: " + ytResponse.status);
     }
 
-    return new NextResponse(response.body, {
+    return new Response(ytResponse.body, {
       headers: {
         "Content-Type": "audio/mp4",
         "Content-Disposition": `attachment; filename="${title}.m4a"`,
@@ -75,7 +78,7 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error downloading video:", error);
-    return NextResponse.json(
+    return Response.json(
       { error: "Không thể tải video. Thử lại sau." },
       { status: 500 }
     );
